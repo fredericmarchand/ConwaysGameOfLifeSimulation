@@ -8,6 +8,8 @@ using namespace std;
 
 #include "mpi.h"
 
+#define DEBUG 0
+
 int **inputArray;
 int **outputArray;
 
@@ -119,8 +121,9 @@ int main(int argc, char *argv[])
             for (y = 0; y < n; ++y)
             {
                 char temp[2] = { buffer[y], '\0' };
-                inputArray[x][y] = atoi(temp);
-                outputArray[x][y] = 0;
+                int val = atoi(temp);
+                inputArray[x][y] = val;
+                outputArray[x][y] = val;
             }
             x++;
         }
@@ -128,46 +131,60 @@ int main(int argc, char *argv[])
         input.close();
 
         printArray(n);
-    
-
+        cout << "==========\n"; 
     //Game of Life logic
+    for (int k = 0; k < 10; ++k){
     for (int i = 0; i < n; ++i)
     {
         for (int j = 0; j < n; ++j)
         {
             int neighbors = 0;
 
-            for (int x = i-1; x < i+1; ++x)
+            for (int x = i-1; x <= i+1; ++x)
             {
-                for (int y = j-1; y < j+1; ++y)
+                for (int y = j-1; y <= j+1; ++y)
                 {
                     if (x < 0 || y < 0 || x >= n || y >= n)
                         continue;
-                    if ((i != x && j != y) && inputArray[x][y] == 1)
+
+                    if (inputArray[x][y] == 1)
                     {
-                        ++neighbors;
+                        if (!(x == i && y == j))
+                            neighbors += 1;
                     }
                 }
             }
+#if DEBUG == 1
+            cout << "(" << i << "," << j << ") = " << inputArray[i][j] << " with neighbors: " << neighbors << endl;
+#endif
 
             if (inputArray[i][j] == 1)
             {
                 if (neighbors >= 4 || neighbors <= 1)
                 {
-                    inputArray[i][j] = 0;
+#if DEBUG == 1
+                    cout << i << ", " << j << " -> 0" << endl; 
+#endif
+                    outputArray[i][j] = 0;
                 }
             }
             else if (inputArray[i][j] == 0)
             {
                 if (neighbors == 3)
                 {
-                    inputArray[i][j] = 1;
+#if DEBUG == 1
+                    cout << i << ", " << j << " -> 1" << endl; 
+#endif
+                    outputArray[i][j] = 1;
                 }
             }
         }
     }
-    
+    twoDimensionalCopy(outputArray, inputArray, n);
     printArray(n);
+    cout << "==========\n";
+    }
+//    printArray(n);
     }
 
     /*if (id == 0)
