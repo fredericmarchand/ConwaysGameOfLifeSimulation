@@ -1,0 +1,7 @@
+#!/bin/sh
+
+mpiexec -n 8 main "test 1 input.txt" temp
+
+#mpirun -np 8 --hostfile hostfile main
+
+
