@@ -27,12 +27,6 @@ int countLines(const char *filename)
     return totalLines;
 }
 
-void stringToCharArray(string s, char *a)
-{
-    a[s.size()] = 0;
-    memcpy(a, s.c_str(), s.size());
-} 
-
 void freeMem(int n)
 {
     /// De-allocate the two dimensional arrays
@@ -70,11 +64,13 @@ int main(int argc, char *argv[])
 {
     int id;
     int p;
-    double wtime;
+    double wtime, wtime2;
 
-    char * inputFilepath;
-    char * outputFilepath;
+    string inputFilepath;
+    char outputFilepath[64];
     int n;
+    int m;
+    int k;
     string buffer;
     int x = 0;
     int y = 0; 
@@ -87,18 +83,21 @@ int main(int argc, char *argv[])
    
     if (id == 0)
     {
-        if (argc <= 2) 
-        {
-            cerr << "The program is missing an argument" << endl; 
-            return 1;   /// Error
-        }
-   
-        inputFilepath = argv[1]; 
-        outputFilepath = argv[2];
+        cout << "N: ";
+        cin >> buffer;
+        n = atoi(buffer.c_str());
+        cout << "k: ";
+        cin >> buffer;
+        k = atoi(buffer.c_str());
+        cout << "m: ";
+        cin >> buffer;
+        m = atoi(buffer.c_str());
+        cout << "Input File: ";
+        cin >> inputFilepath;
+        
+        //n = countLines(inputFilepath.c_str());
 
-        n = countLines(inputFilepath);
-
-        input.open(inputFilepath);
+        input.open(inputFilepath.c_str());
 
         if (!input.is_open())
         {
@@ -130,87 +129,128 @@ int main(int argc, char *argv[])
 
         input.close();
 
+#if DEBUG == 1
         printArray(n);
         cout << "==========\n"; 
+#endif
+
+        //Split and send data to other processors
+
+        wtime = MPI::Wtime();
+    }
+
     //Game of Life logic
-    for (int k = 0; k < 10; ++k){
-    for (int i = 0; i < n; ++i)
-    {
-        for (int j = 0; j < n; ++j)
+    for (int itr = 0; itr < k; ++itr)
+    { 
+        for (int i = 0; i < n; ++i)
         {
-            int neighbors = 0;
-
-            for (int x = i-1; x <= i+1; ++x)
+            for (int j = 0; j < n; ++j)
             {
-                for (int y = j-1; y <= j+1; ++y)
-                {
-                    if (x < 0 || y < 0 || x >= n || y >= n)
-                        continue;
+                int neighbors = 0;
 
-                    if (inputArray[x][y] == 1)
+                //Count the neighbors of each tile in the matrix
+                for (int x = i-1; x <= i+1; ++x)
+                {
+                    for (int y = j-1; y <= j+1; ++y)
                     {
-                        if (!(x == i && y == j))
-                            neighbors += 1;
+                        if (x < 0 || y < 0 || x >= n || y >= n)
+                            continue;
+
+                        if (inputArray[x][y] == 1)
+                        {
+                            if (!(x == i && y == j))
+                                neighbors += 1;
+                        }
+                    }
+                }
+#if DEBUG == 1
+                cout << "(" << i << "," << j << ") = " << inputArray[i][j] << " with neighbors: " << neighbors << endl;
+#endif
+
+                if (inputArray[i][j] == 1)
+                {
+                    //An organism must have 2 or 3 neighbors to survive to the next iteration
+                    if (neighbors >= 4 || neighbors <= 1)
+                    {
+#if DEBUG == 1
+                        cout << i << ", " << j << " -> 0" << endl; 
+#endif
+                        outputArray[i][j] = 0;
+                    }
+                }
+                else if (inputArray[i][j] == 0)
+                {
+                    //An empty slot with 3 neighboring organisms spawns a new organism
+                    if (neighbors == 3)
+                    {
+#if DEBUG == 1
+                        cout << i << ", " << j << " -> 1" << endl; 
+#endif
+                        outputArray[i][j] = 1;
                     }
                 }
             }
-#if DEBUG == 1
-            cout << "(" << i << "," << j << ") = " << inputArray[i][j] << " with neighbors: " << neighbors << endl;
-#endif
+        }
 
-            if (inputArray[i][j] == 1)
+        twoDimensionalCopy(outputArray, inputArray, n);
+
+        //Every m iteration print the time and print the matrix to an output file
+        if ((m != 0) && ((itr % m) == 0))
+        {
+            //Send configuration to processor 0
+
+
+            if (id == 0)
             {
-                if (neighbors >= 4 || neighbors <= 1)
+                //Gather information from other processors 
+
+        
+                //Print time
+                wtime2 = MPI::Wtime() - wtime;
+                cout << "  Elapsed wall clock time = " << wtime2 << " seconds.\n";
+
+                /// Write to output file
+                sprintf(outputFilepath, "Iteration %d of %d output.txt", itr, k); 
+                ofstream outputFile (outputFilepath);
+                if (!outputFile.is_open())
                 {
-#if DEBUG == 1
-                    cout << i << ", " << j << " -> 0" << endl; 
-#endif
-                    outputArray[i][j] = 0;
+                    cerr << "Failed to open output file" << endl;
+                    return 1;   /// Error
                 }
+    
+                for (int x = 0; x < n; ++x)
+                {
+                    for (int y = 0; y < n; ++y)
+                    {
+                        outputFile << inputArray[x][y];
+                    }
+                    outputFile << "\n";
+                }
+
+                outputFile.close();
             }
-            else if (inputArray[i][j] == 0)
-            {
-                if (neighbors == 3)
-                {
 #if DEBUG == 1
-                    cout << i << ", " << j << " -> 1" << endl; 
+            printArray(n);
+            cout << "==========" << endl;
 #endif
-                    outputArray[i][j] = 1;
-                }
+        }
+        else if (m == 0)
+        {
+            if (id == 0)
+            {
+                //Print time
+                wtime2 = MPI::Wtime() - wtime;
+                cout << "  Elapsed wall clock time = " << wtime2 << " seconds.\n";
             }
         }
-    }
-    twoDimensionalCopy(outputArray, inputArray, n);
+#if DEBUG == 1
     printArray(n);
     cout << "==========\n";
+#endif
     }
-//    printArray(n);
-    }
-
-    /*if (id == 0)
-    {
-        wtime = MPI::Wtime() - wtime;
-        cout << "  Elapsed wall clock time = " << wtime << " seconds.\n";
-    }*/
 
     if (id == 0)
     {
-        /*/// Write to output file
-        ofstream outputFile (outputFilepath);
-        if (!outputFile.is_open())
-        {
-            cerr << "Failed to open output file" << endl;
-            return 1;   /// Error
-        }
-    
-        outputFile << n << endl;
-        for (int i = 0; i < n; ++i)
-        {
-            outputFile << inputArray[i] << endl;
-        }
-
-        outputFile.close();*/
-
         freeMem(n);
     }
 
