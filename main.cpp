@@ -141,6 +141,7 @@ int main(int argc, char *argv[])
             MPI_Send(&n, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
             MPI_Send(&k, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
             MPI_Send(&m, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+
             for (int j = 0; j < n; ++j)
             {
                 MPI_Send(inputArray[j], n, MPI_INT, i, 0, MPI_COMM_WORLD);
@@ -164,14 +165,10 @@ int main(int argc, char *argv[])
             inputArray[i] = new int[n];
             outputArray[i] = new int[n];
         }
-        //cout << id << ": (" << n << "," << k << "," << m << ")" << endl;
+
         for (int j = 0; j < n; ++j)
         {
             MPI_Recv(inputArray[j], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
-        }
-        if (id == 1)
-        {
-            printArray(n);
         }
     }
 
@@ -234,12 +231,24 @@ int main(int argc, char *argv[])
         if ((m != 0) && ((itr % m) == 0))
         {
             //Send configuration to processor 0
-
+            if (id != 0)
+            {
+                for (int j = 0; j < n; ++j)
+                {
+                    MPI_Send(inputArray[j], n, MPI_INT, 0, id, MPI_COMM_WORLD);
+                }
+            }
 
             if (id == 0)
             {
                 //Gather information from other processors 
-
+                for (int q = 1; q < p; ++q)
+                {
+                    for (int j = 0; j < n; ++j)
+                    {
+                        MPI_Recv(inputArray[j], n, MPI_INT, MPI_ANY_SOURCE, q, MPI_COMM_WORLD, &stat);
+                    }
+                }
         
                 //Print time
                 wtime2 = MPI::Wtime() - wtime;
