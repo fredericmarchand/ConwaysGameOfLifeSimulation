@@ -74,7 +74,8 @@ int main(int argc, char *argv[])
     string buffer;
     int x = 0;
     int y = 0; 
-    
+    MPI_Status stat;
+
     ifstream input;
 
     MPI::Init(argc, argv); //  Initialize MPI.
@@ -135,8 +136,43 @@ int main(int argc, char *argv[])
 #endif
 
         //Split and send data to other processors
+        for (int i = 1; i < p; ++i)
+        {
+            MPI_Send(&n, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+            MPI_Send(&k, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+            MPI_Send(&m, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+            for (int j = 0; j < n; ++j)
+            {
+                MPI_Send(inputArray[j], n, MPI_INT, i, 0, MPI_COMM_WORLD);
+            }
+        }
 
         wtime = MPI::Wtime();
+    }
+
+    if (id != 0)
+    {
+        MPI_Recv(&n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
+        MPI_Recv(&k, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
+        MPI_Recv(&m, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
+
+        inputArray = new int*[n];
+        outputArray = new int*[n];
+
+        for (int i = 0; i < n; ++i)
+        {
+            inputArray[i] = new int[n];
+            outputArray[i] = new int[n];
+        }
+        //cout << id << ": (" << n << "," << k << "," << m << ")" << endl;
+        for (int j = 0; j < n; ++j)
+        {
+            MPI_Recv(inputArray[j], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
+        }
+        if (id == 1)
+        {
+            printArray(n);
+        }
     }
 
     //Game of Life logic
