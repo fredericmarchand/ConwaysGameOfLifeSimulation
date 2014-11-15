@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <ctime>
 #include <fstream>
+#include <cmath>
 
 using namespace std;
 
@@ -32,6 +33,40 @@ void printArray(int **array, int n)
     }
 }
 
+void getRowsForProcessor(int procId, int *row, int *totalRows, int n, int p)
+{
+    //If there are less (or equal) rows than processors, distribute a row to each
+    if (n <= p)
+    {
+        int rows = n;
+        for (int i = 0; i < p; ++i, rows--)
+        {
+            if (i == procId)
+            {
+                *totalRows = (rows > 0 ? 1 : 0);
+                *row = (rows > 0 ? i : 0);
+                return;
+            }
+        }
+    }
+    else //If there are more rows than processors
+    {
+        int per = floor(n/p);
+        int rem = n%p;
+        *row = 0;
+        int lastTotal = 0;
+        for (int i = 0; i < p; ++i)
+        {
+            *totalRows = (per + (rem > 0 ? 1 : 0));
+            rem--;
+            *row = lastTotal;
+            lastTotal = lastTotal + *totalRows;
+            if (i == procId)
+                return;
+        }
+    }
+}
+
 void twoDimensionalCopy(int **input, int **output, int n)
 {
     for (int x = 0; x < n; ++x)
@@ -49,7 +84,7 @@ int main(int argc, char *argv[])
     int p;
     double wtime, wtime2;
 
-    string inputFilepath = "test";
+    string inputFilepath = "test 3 input.txt";
     char outputFilepath[64];
     int n;
     int m;
@@ -82,9 +117,13 @@ int main(int argc, char *argv[])
         //cout << "Input File: ";
         //cin >> inputFilepath;
         
-        n = 10;
+        n = 20;
         k = 10;
         m = 1;
+
+        int a, b;
+        for (int i = 0; i < 8; ++i)
+            getRowsForProcessor(i, &a, &b, 14, 8);
 
         input.open(inputFilepath.c_str());
 
@@ -252,7 +291,7 @@ int main(int argc, char *argv[])
                 cout << "  Elapsed wall clock time = " << wtime2 << " seconds.\n";
 
                 /// Write to output file
-                sprintf(outputFilepath, "Iteration %d of %d output.txt", itr, k); 
+                sprintf(outputFilepath, "Iteration %d of %d output.txt", itr+1, k); 
                 ofstream outputFile (outputFilepath);
                 if (!outputFile.is_open())
                 {
