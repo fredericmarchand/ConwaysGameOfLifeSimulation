@@ -130,11 +130,6 @@ int main(int argc, char *argv[])
 
         input.close();
 
-#if DEBUG == 1
-        printArray(n);
-        cout << "==========\n"; 
-#endif
-
         //Split and send data to other processors
         for (int i = 1; i < p; ++i)
         {
@@ -227,6 +222,8 @@ int main(int argc, char *argv[])
 
         twoDimensionalCopy(outputArray, inputArray, n);
 
+        //Processors request updates from processor 0
+
         //Every m iteration print the time and print the matrix to an output file
         if ((m != 0) && ((itr % m) == 0))
         {
@@ -274,10 +271,6 @@ int main(int argc, char *argv[])
 
                 outputFile.close();
             }
-#if DEBUG == 1
-            printArray(n);
-            cout << "==========" << endl;
-#endif
         }
         else if (m == 0)
         {
@@ -288,10 +281,6 @@ int main(int argc, char *argv[])
                 cout << "  Elapsed wall clock time = " << wtime2 << " seconds.\n";
             }
         }
-#if DEBUG == 1
-    printArray(n);
-    cout << "==========\n";
-#endif
     }
 
     if (id == 0)
