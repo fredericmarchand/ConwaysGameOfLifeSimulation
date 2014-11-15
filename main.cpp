@@ -1,7 +1,7 @@
-# include <cstdlib>
-# include <iostream>
-# include <iomanip>
-# include <ctime>
+#include <cstdlib>
+#include <iostream>
+#include <iomanip>
+#include <ctime>
 #include <fstream>
 
 using namespace std;
@@ -130,17 +130,11 @@ int main(int argc, char *argv[])
 
         input.close();
 
-        //Split and send data to other processors
         for (int i = 1; i < p; ++i)
         {
             MPI_Send(&n, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
             MPI_Send(&k, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
             MPI_Send(&m, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
-
-            for (int j = 0; j < n; ++j)
-            {
-                MPI_Send(inputArray[j], n, MPI_INT, i, 0, MPI_COMM_WORLD);
-            }
         }
 
         wtime = MPI::Wtime();
@@ -160,16 +154,32 @@ int main(int argc, char *argv[])
             inputArray[i] = new int[n];
             outputArray[i] = new int[n];
         }
-
-        for (int j = 0; j < n; ++j)
-        {
-            MPI_Recv(inputArray[j], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
-        }
     }
 
     //Game of Life logic
     for (int itr = 0; itr < k; ++itr)
-    { 
+    {
+        if (id == 0)
+        {
+            //Split and send data to other processors
+            for (int i = 1; i < p; ++i)
+            {
+                for (int j = 0; j < n; ++j)
+                {
+                    MPI_Send(inputArray[j], n, MPI_INT, i, 0, MPI_COMM_WORLD);
+                }
+            }
+        }
+
+        if (id != 0)
+        {
+            for (int j = 0; j < n; ++j)
+            {
+                MPI_Recv(inputArray[j], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
+            }
+        }
+
+     
         for (int i = 0; i < n; ++i)
         {
             for (int j = 0; j < n; ++j)
@@ -221,7 +231,8 @@ int main(int argc, char *argv[])
         }
 
         twoDimensionalCopy(outputArray, inputArray, n);
-
+        if (id == 0)
+            printArray(n);
         //Processors request updates from processor 0
 
         //Every m iteration print the time and print the matrix to an output file
@@ -230,22 +241,26 @@ int main(int argc, char *argv[])
             //Send configuration to processor 0
             if (id != 0)
             {
-                for (int j = 0; j < n; ++j)
-                {
-                    MPI_Send(inputArray[j], n, MPI_INT, 0, id, MPI_COMM_WORLD);
-                }
+                //for (int j = 0; j < n; ++j)
+               // {
+                //    MPI_Send(inputArray[j], n, MPI_INT, 0, 0, MPI_COMM_WORLD);
+                    //for (int i = 0; i < n; ++i)
+                    //    cout << inputArray[j][i];
+                    //cout << endl;
+
+               // }
             }
 
             if (id == 0)
             {
                 //Gather information from other processors 
-                for (int q = 1; q < p; ++q)
-                {
-                    for (int j = 0; j < n; ++j)
-                    {
-                        MPI_Recv(inputArray[j], n, MPI_INT, MPI_ANY_SOURCE, q, MPI_COMM_WORLD, &stat);
-                    }
-                }
+                //for (int q = 1; q < p; ++q)
+                //{
+                //    for (int j = 0; j < n; ++j)
+                //    {
+                //        MPI_Recv(inputArray[j], n, MPI_INT, q, 0, MPI_COMM_WORLD, &stat);
+                //    }
+               // }
         
                 //Print time
                 wtime2 = MPI::Wtime() - wtime;
@@ -283,10 +298,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (id == 0)
-    {
-        freeMem(n);
-    }
+    freeMem(n);
 
     //  Terminate MPI.
     MPI::Finalize();
