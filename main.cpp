@@ -11,6 +11,15 @@ using namespace std;
 
 #define DEBUG 0 
 
+void freeMainArray(int **array, int n)
+{
+    for (int i = 0; i < n; ++i)
+    {
+        delete [] array[i];
+    }
+    delete [] array;
+}
+
 void freeMem(int **inputArray, int **outputArray, int n)
 {
     /// De-allocate the two dimensional arrays
@@ -62,14 +71,16 @@ void getRowsForProcessor(int procId, int *row, int *totalRows, int n, int p)
             *row = lastTotal;
             lastTotal = lastTotal + *totalRows;
             if (i == procId)
+            {
                 return;
+            }
         }
     }
 }
 
-void twoDimensionalCopy(int **input, int **output, int n)
+void twoDimensionalCopy(int **input, int **output, int rows, int n)
 {
-    for (int x = 0; x < n; ++x)
+    for (int x = 0; x < rows; ++x)
     {
         for (int y = 0; y < n; ++y)
         {
@@ -84,7 +95,7 @@ int main(int argc, char *argv[])
     int p;
     double wtime, wtime2;
 
-    string inputFilepath = "test 3 input.txt";
+    string inputFilepath = "test 1 input.txt";
     char outputFilepath[64];
     int n;
     int m;
@@ -96,8 +107,17 @@ int main(int argc, char *argv[])
 
     ifstream input;
 
-    int **inputArray;
-    int **outputArray;
+    int **mainArray;
+    int **inputArray = NULL;
+    int **outputArray = NULL;
+    int *rowAbove = NULL;
+    int *rowBelow = NULL;
+
+    int startRow = 0;
+    int totalRows = 0;
+
+    int sendRow;
+    int sendTotalRows;
 
     MPI::Init(argc, argv); //  Initialize MPI.
     p = MPI::COMM_WORLD.Get_size(); //  Get the number of processes.
@@ -117,14 +137,17 @@ int main(int argc, char *argv[])
         //cout << "Input File: ";
         //cin >> inputFilepath;
         
-        n = 20;
+        n = 10;
         k = 10;
         m = 1;
 
-        int a, b;
-        for (int i = 0; i < 8; ++i)
-            getRowsForProcessor(i, &a, &b, 14, 8);
+        mainArray = new int*[n];
 
+        for (int i = 0; i < n; ++i)
+        {
+            mainArray[i] = new int[n];
+        }   
+    
         input.open(inputFilepath.c_str());
 
         if (!input.is_open())
@@ -133,15 +156,6 @@ int main(int argc, char *argv[])
             return 1;   /// Error
         }
 
-        inputArray = new int*[n];
-        outputArray = new int*[n];
-
-        for (int i = 0; i < n; ++i)
-        {
-            inputArray[i] = new int[n];
-            outputArray[i] = new int[n];
-        }   
-    
         x = 0;
         while (getline(input, buffer))
         {   
@@ -149,8 +163,7 @@ int main(int argc, char *argv[])
             {
                 char temp[2] = { buffer[y], '\0' };
                 int val = atoi(temp);
-                inputArray[x][y] = val;
-                outputArray[x][y] = val;
+                mainArray[x][y] = val;
             }
             x++;
         }
@@ -172,43 +185,104 @@ int main(int argc, char *argv[])
         MPI_Recv(&n, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
         MPI_Recv(&k, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
         MPI_Recv(&m, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
+    }
 
-        inputArray = new int*[n];
-        outputArray = new int*[n];
+    getRowsForProcessor(id, &startRow, &totalRows, n, p);
 
-        for (int i = 0; i < n; ++i)
+    inputArray = new int*[totalRows];
+    outputArray = new int*[totalRows];
+
+    for (int i = 0; i < totalRows; ++i)
+    {
+        inputArray[i] = new int[n];
+        outputArray[i] = new int[n];
+    }
+
+    rowAbove = new int[n];
+    rowBelow = new int[n];
+   
+    if (id == 0)
+    {
+        int emptyRow[n];
+        memset(emptyRow, 0, n);
+
+        //Split and send data to other processors
+        for (int i = 0; i < p; ++i)
         {
-            inputArray[i] = new int[n];
-            outputArray[i] = new int[n];
+            getRowsForProcessor(i, &sendRow, &sendTotalRows, n, p);
+
+            if (sendTotalRows == 0)
+                continue;
+
+            if (i == 0)
+            {
+                MPI_Send(emptyRow, n, MPI_INT, i, 0, MPI_COMM_WORLD);
+            }
+            else
+            {
+                MPI_Send(mainArray[sendRow-1], n, MPI_INT, i, 0, MPI_COMM_WORLD);
+            }
+            
+            for (int j = sendRow; j < (sendRow + sendTotalRows); ++j)
+            {
+                MPI_Send(mainArray[j], n, MPI_INT, i, 0, MPI_COMM_WORLD);
+            }
+
+            if (i == p-1)
+            {
+                MPI_Send(emptyRow, n, MPI_INT, i, 0, MPI_COMM_WORLD);
+            }
+            else
+            {
+                MPI_Send(mainArray[sendRow + sendTotalRows - 1], n, MPI_INT, i, 0, MPI_COMM_WORLD);
+            }
         }
+    }
+
+    if (totalRows > 0)
+    {
+        MPI_Recv(rowAbove, n, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
+        for (int j = 0; j < totalRows; ++j)
+        {
+            MPI_Recv(inputArray[j], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
+            for (int i = 0; i < n; ++i)
+                outputArray[j][i] = inputArray[j][i];
+        }
+        MPI_Recv(rowBelow, n, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
+    }
+    else
+    {
+        //Free mem
+        MPI::Finalize(); 
+        return 0;
     }
 
     //Game of Life logic
     for (int itr = 0; itr < k; ++itr)
     {
-        if (id == 0)
-        {
-            //Split and send data to other processors
-            for (int i = 1; i < p; ++i)
-            {
-                for (int j = 0; j < n; ++j)
-                {
-                    MPI_Send(inputArray[j], n, MPI_INT, i, 0, MPI_COMM_WORLD);
-                }
-            }
-        }
+        //Refresh above and below
+        int emptyRow[n];
+        memset(emptyRow, 0, n);
+
+        //Split and send data to other processors
+
+        if (id != p-1)
+            MPI_Send(inputArray[totalRows-1], n, MPI_INT, id+1, 0, MPI_COMM_WORLD);
 
         if (id != 0)
-        {
-            for (int j = 0; j < n; ++j)
-            {
-                MPI_Recv(inputArray[j], n, MPI_INT, 0, 0, MPI_COMM_WORLD, &stat);
-                for (int i = 0; i < n; ++i)
-                    outputArray[j][i] = inputArray[j][i];
-            }
-        }
+            MPI_Send(inputArray[0], n, MPI_INT, id-1, 0, MPI_COMM_WORLD);
 
-        for (int i = 0; i < n; ++i)
+        cout << "Recing" << endl;
+
+        if (id != 0)
+            MPI_Recv(rowAbove, n, MPI_INT, id-1, 0, MPI_COMM_WORLD, &stat);
+
+        if (id != p-1)
+            MPI_Recv(rowBelow, n, MPI_INT, id+1, 0, MPI_COMM_WORLD, &stat);
+
+        cout << "Done" << endl;
+
+        for (int i = 0; i < totalRows; ++i)
         {
             for (int j = 0; j < n; ++j)
             {
@@ -219,13 +293,30 @@ int main(int argc, char *argv[])
                 {
                     for (int y = j-1; y <= j+1; ++y)
                     {
-                        if (x < 0 || y < 0 || x >= n || y >= n)
+                        if (y < 0 || y >= n)
                             continue;
 
-                        if (inputArray[x][y] == 1)
+                        if (x < 0)
                         {
-                            if (!(x == i && y == j))
+                            if (rowAbove[y] == 1)
+                            {
                                 neighbors += 1;
+                            }
+                        }
+                        else if (x >= totalRows)
+                        {
+                            if (rowBelow[y] == 1)
+                            {
+                                neighbors += 1;
+                            }
+                        }
+                        else
+                        {
+                            if (inputArray[x][y] == 1)
+                            {
+                                if (!(x == i && y == j))
+                                    neighbors += 1;
+                            }
                         }
                     }
                 }
@@ -258,33 +349,32 @@ int main(int argc, char *argv[])
             }
         }
 
-        twoDimensionalCopy(outputArray, inputArray, n);
-        if (id == 7) printArray(inputArray, n); 
-
+        twoDimensionalCopy(outputArray, inputArray, totalRows, n);
+        
         //Processors request updates from processor 0
 
         //Every m iteration print the time and print the matrix to an output file
         if ((m != 0) && ((itr % m) == 0))
         {
             //Send configuration to processor 0
-            if (id != 0)
+            for (int j = 0; j < totalRows; ++j)
             {
-                for (int j = 0; j < n; ++j)
-                {
-                    MPI_Send(inputArray[j], n, MPI_INT, 0, 0, MPI_COMM_WORLD);
-                }
+                MPI_Send(inputArray[j], n, MPI_INT, 0, 0, MPI_COMM_WORLD);
             }
 
             if (id == 0)
             {
                 //Gather information from other processors 
-                for (int q = 1; q < p; ++q)
+                for (int q = 0; q < p; ++q)
                 {
-                    for (int j = 0; j < n; ++j)
+                    getRowsForProcessor(q, &sendRow, &sendTotalRows, n, p);
+                    for (int j = sendRow; j < (sendRow + sendTotalRows); ++j)
                     {
-                        MPI_Recv(inputArray[j], n, MPI_INT, q, 0, MPI_COMM_WORLD, &stat);
+                        MPI_Recv(mainArray[j], n, MPI_INT, q, 0, MPI_COMM_WORLD, &stat);
                     }
                 }
+
+                printArray(mainArray, n); 
         
                 //Print time
                 wtime2 = MPI::Wtime() - wtime;
@@ -303,7 +393,7 @@ int main(int argc, char *argv[])
                 {
                     for (int y = 0; y < n; ++y)
                     {
-                        outputFile << inputArray[x][y];
+                        outputFile << mainArray[x][y];
                     }
                     outputFile << "\n";
                 }
@@ -322,8 +412,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    freeMem(inputArray, outputArray, n);
-
+    freeMem(inputArray, outputArray, totalRows);
+    delete [] rowBelow;
+    delete [] rowAbove;
+    if (id == 0)
+    {
+        freeMainArray(mainArray, n);
+    }
     // Terminate MPI.
     MPI::Finalize();
 
