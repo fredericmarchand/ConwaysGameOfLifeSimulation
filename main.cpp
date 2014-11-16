@@ -11,6 +11,89 @@ using namespace std;
 
 #define DEBUG 0 
 
+void twoDimensionalCopy(int **input, int **output, int rows, int n)
+{
+    for (int x = 0; x < rows; ++x)
+    {
+        for (int y = 0; y < n; ++y)
+        {
+            output[x][y] = input[x][y];
+        }
+    }
+}
+
+void runGameLogic(int **inputArray, int **outputArray, int *rowAbove, int *rowBelow, int totalRows, int n)
+{
+    for (int i = 0; i < totalRows; ++i)
+    {
+        for (int j = 0; j < n; ++j)
+        {
+            int neighbors = 0;
+
+            //Count the neighbors of each tile in the matrix
+            for (int x = i-1; x <= i+1; ++x)
+            {
+                for (int y = j-1; y <= j+1; ++y)
+                {
+                    if (y < 0 || y >= n)
+                        continue;
+
+                    if (x < 0)
+                    {
+                        if (rowAbove[y] == 1)
+                        {
+                            neighbors += 1;
+                        }
+                    }
+                    else if (x >= totalRows)
+                    {
+                        if (rowBelow[y] == 1)
+                        {
+                            neighbors += 1;
+                        }
+                    }
+                    else
+                    {
+                        if (inputArray[x][y] == 1)
+                        {
+                            if (!(x == i && y == j))
+                                neighbors += 1;
+                        }
+                    }
+                }
+            }
+#if DEBUG == 1 
+            cout << "(" << i << "," << j << ") = " << inputArray[i][j] << " with neighbors: " << neighbors << endl;
+#endif
+
+            if (inputArray[i][j] == 1)
+            {
+                //An organism must have 2 or 3 neighbors to survive to the next iteration
+                if (neighbors >= 4 || neighbors <= 1)
+                {
+#if DEBUG == 1
+                    cout << i << ", " << j << " -> 0" << endl; 
+#endif
+                    outputArray[i][j] = 0;
+                }
+            }
+            else if (inputArray[i][j] == 0)
+            {
+                //An empty slot with 3 neighboring organisms spawns a new organism
+                if (neighbors == 3)
+                {
+#if DEBUG == 1
+                    cout << i << ", " << j << " -> 1" << endl; 
+#endif
+                    outputArray[i][j] = 1;
+                }
+            }
+        }
+    }
+
+    twoDimensionalCopy(outputArray, inputArray, totalRows, n);
+}
+
 void freeMainArray(int **array, int n)
 {
     for (int i = 0; i < n; ++i)
@@ -18,6 +101,28 @@ void freeMainArray(int **array, int n)
         delete [] array[i];
     }
     delete [] array;
+}
+
+void outputArrayToFile(int **mainArray, int itr, int k, int n)
+{
+    char outputFilepath[64]; 
+    sprintf(outputFilepath, "Iteration %d of %d output.txt", itr+1, k); 
+    ofstream outputFile (outputFilepath);
+    if (!outputFile.is_open())
+    {
+        cerr << "Failed to open output file" << endl;
+        exit(1);
+    }
+
+    for (int x = 0; x < n; ++x)
+    {
+        for (int y = 0; y < n; ++y)
+        {
+            outputFile << mainArray[x][y];
+        }
+        outputFile << "\n";
+    }
+    outputFile.close();
 }
 
 void freeMem(int **inputArray, int **outputArray, int n)
@@ -78,17 +183,6 @@ void getRowsForProcessor(int procId, int *row, int *totalRows, int n, int p)
     }
 }
 
-void twoDimensionalCopy(int **input, int **output, int rows, int n)
-{
-    for (int x = 0; x < rows; ++x)
-    {
-        for (int y = 0; y < n; ++y)
-        {
-            output[x][y] = input[x][y];
-        }
-    }
-}
-
 int main(int argc, char *argv[])
 {
     int id;
@@ -96,7 +190,6 @@ int main(int argc, char *argv[])
     double wtime, wtime2;
 
     string inputFilepath = "test 1 input.txt";
-    char outputFilepath[64];
     int n;
     int m;
     int k;
@@ -252,7 +345,13 @@ int main(int argc, char *argv[])
     }
     else
     {
-        //Free mem
+        freeMem(inputArray, outputArray, totalRows);
+        delete [] rowBelow;
+        delete [] rowAbove;
+        if (id == 0)
+        {
+            freeMainArray(mainArray, n);
+        } 
         MPI::Finalize(); 
         return 0;
     }
@@ -272,86 +371,14 @@ int main(int argc, char *argv[])
         if (id != 0)
             MPI_Send(inputArray[0], n, MPI_INT, id-1, 0, MPI_COMM_WORLD);
 
-        cout << "Recing" << endl;
-
         if (id != 0)
             MPI_Recv(rowAbove, n, MPI_INT, id-1, 0, MPI_COMM_WORLD, &stat);
 
         if (id != p-1)
             MPI_Recv(rowBelow, n, MPI_INT, id+1, 0, MPI_COMM_WORLD, &stat);
 
-        cout << "Done" << endl;
-
-        for (int i = 0; i < totalRows; ++i)
-        {
-            for (int j = 0; j < n; ++j)
-            {
-                int neighbors = 0;
-
-                //Count the neighbors of each tile in the matrix
-                for (int x = i-1; x <= i+1; ++x)
-                {
-                    for (int y = j-1; y <= j+1; ++y)
-                    {
-                        if (y < 0 || y >= n)
-                            continue;
-
-                        if (x < 0)
-                        {
-                            if (rowAbove[y] == 1)
-                            {
-                                neighbors += 1;
-                            }
-                        }
-                        else if (x >= totalRows)
-                        {
-                            if (rowBelow[y] == 1)
-                            {
-                                neighbors += 1;
-                            }
-                        }
-                        else
-                        {
-                            if (inputArray[x][y] == 1)
-                            {
-                                if (!(x == i && y == j))
-                                    neighbors += 1;
-                            }
-                        }
-                    }
-                }
-#if DEBUG == 1 
-                cout << "(" << i << "," << j << ") = " << inputArray[i][j] << " with neighbors: " << neighbors << endl;
-#endif
-
-                if (inputArray[i][j] == 1)
-                {
-                    //An organism must have 2 or 3 neighbors to survive to the next iteration
-                    if (neighbors >= 4 || neighbors <= 1)
-                    {
-#if DEBUG == 1
-                        cout << i << ", " << j << " -> 0" << endl; 
-#endif
-                        outputArray[i][j] = 0;
-                    }
-                }
-                else if (inputArray[i][j] == 0)
-                {
-                    //An empty slot with 3 neighboring organisms spawns a new organism
-                    if (neighbors == 3)
-                    {
-#if DEBUG == 1
-                        cout << i << ", " << j << " -> 1" << endl; 
-#endif
-                        outputArray[i][j] = 1;
-                    }
-                }
-            }
-        }
-
-        twoDimensionalCopy(outputArray, inputArray, totalRows, n);
-        
-        //Processors request updates from processor 0
+        //Game of Life stuff
+        runGameLogic(inputArray, outputArray, rowAbove, rowBelow, totalRows, n);                
 
         //Every m iteration print the time and print the matrix to an output file
         if ((m != 0) && ((itr % m) == 0))
@@ -381,24 +408,7 @@ int main(int argc, char *argv[])
                 cout << "  Elapsed wall clock time = " << wtime2 << " seconds.\n";
 
                 /// Write to output file
-                sprintf(outputFilepath, "Iteration %d of %d output.txt", itr+1, k); 
-                ofstream outputFile (outputFilepath);
-                if (!outputFile.is_open())
-                {
-                    cerr << "Failed to open output file" << endl;
-                    return 1;   /// Error
-                }
-    
-                for (int x = 0; x < n; ++x)
-                {
-                    for (int y = 0; y < n; ++y)
-                    {
-                        outputFile << mainArray[x][y];
-                    }
-                    outputFile << "\n";
-                }
-
-                outputFile.close();
+                outputArrayToFile(mainArray, itr, k, n);
             }
         }
         else if (m == 0)
