@@ -1,5 +1,7 @@
 #include <cstdlib>
+#include <string>
 #include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <ctime>
 #include <fstream>
@@ -189,7 +191,7 @@ int main(int argc, char *argv[])
     int p;
     double wtime, wtime2;
 
-    string inputFilepath = "test 1 input.txt";
+    char inputFilepath[100];
     int n;
     int m;
     int k;
@@ -218,21 +220,23 @@ int main(int argc, char *argv[])
    
     if (id == 0)
     {
-        //cout << "N: ";
-        //cin >> buffer;
-        //n = atoi(buffer.c_str());
-        //cout << "k: ";
-        //cin >> buffer;
-        //k = atoi(buffer.c_str());
-        //cout << "m: ";
-        //cin >> buffer;
-        //m = atoi(buffer.c_str());
-        //cout << "Input File: ";
-        //cin >> inputFilepath;
+        cout << "N: ";
+        cin >> buffer;
+        n = atoi(buffer.c_str());
+        cout << "k: ";
+        cin >> buffer;
+        k = atoi(buffer.c_str());
+        cout << "m: ";
+        cin >> buffer;
+        m = atoi(buffer.c_str());
+        cout << "Input File: ";
+        cin.ignore(10000, '\n');
+        cin.clear();
+        cin.getline(inputFilepath, 100);
         
-        n = 10;
-        k = 10;
-        m = 1;
+        /*n = 10;
+        k = 100;
+        m = 0; */
 
         mainArray = new int*[n];
 
@@ -241,7 +245,7 @@ int main(int argc, char *argv[])
             mainArray[i] = new int[n];
         }   
     
-        input.open(inputFilepath.c_str());
+        input.open(inputFilepath);
 
         if (!input.is_open())
         {
@@ -363,8 +367,7 @@ int main(int argc, char *argv[])
         int emptyRow[n];
         memset(emptyRow, 0, n);
 
-        //Split and send data to other processors
-
+        //Transfer row above and row below for each respective processor
         if (id != p-1)
             MPI_Send(inputArray[totalRows-1], n, MPI_INT, id+1, 0, MPI_COMM_WORLD);
 
