@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
     int p;
     double wtime, wtime2;
 
-    char inputFilepath[100];
+    char *inputFilepath;
     int n;
     int m;
     int k;
@@ -220,19 +220,16 @@ int main(int argc, char *argv[])
    
     if (id == 0)
     {
-        cout << "N: ";
-        cin >> buffer;
-        n = atoi(buffer.c_str());
-        cout << "k: ";
-        cin >> buffer;
-        k = atoi(buffer.c_str());
-        cout << "m: ";
-        cin >> buffer;
-        m = atoi(buffer.c_str());
-        cout << "Input File: ";
-        cin.ignore(10000, '\n');
-        cin.clear();
-        cin.getline(inputFilepath, 100);
+        if (argc != 5)
+        {
+            cerr << "Missing parameters" << endl << "./main <N> <k> <m> <inputFile>" << endl;
+            return 1;
+        }
+
+        n = atoi(argv[1]);
+        k = atoi(argv[2]);
+        m = atoi(argv[3]);
+        inputFilepath = argv[4];
         
         /*n = 10;
         k = 100;
@@ -403,8 +400,9 @@ int main(int argc, char *argv[])
                         MPI_Recv(mainArray[j], n, MPI_INT, q, 0, MPI_COMM_WORLD, &stat);
                     }
                 }
-
+#if DEBUG == 1
                 printArray(mainArray, n); 
+#endif
         
                 //Print time
                 wtime2 = MPI::Wtime() - wtime;
