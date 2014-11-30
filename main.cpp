@@ -108,7 +108,7 @@ void freeMainArray(int **array, int n)
 void outputArrayToFile(int **mainArray, int itr, int k, int n)
 {
     char outputFilepath[64]; 
-    sprintf(outputFilepath, "Iteration %d of %d output.txt", itr+1, k); 
+    sprintf(outputFilepath, "Iteration %d of %d output.txt", itr, k); 
     ofstream outputFile (outputFilepath);
     if (!outputFile.is_open())
     {
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
     }
 
     //Game of Life logic
-    for (int itr = 0; itr < k; ++itr)
+    for (int itr = 1; itr <= k; ++itr)
     {
         //Refresh above and below
         int emptyRow[n];
